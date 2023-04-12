@@ -21,5 +21,6 @@
 #endif
 
 bool startWifi(bool firstcall = true);
+bool WifiStationConnected();
 bool cfgPortalActive();
 void cleanWifiAuthData();

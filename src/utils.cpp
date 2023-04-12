@@ -61,8 +61,9 @@ void doRestart(const char *reason) {
 }
 
 void debugMemory(const char *caller) {
-    LOG_INF("%s > Free: heap %u, block: %u, pSRAM %u\n",
-            caller, ESP.getFreeHeap(),
+    LOG_INF("%s > Free: heap %u, block: %u, pSRAM %u",
+            caller,
+            ESP.getFreeHeap(),
             heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
             ESP.getFreePsram());
 }

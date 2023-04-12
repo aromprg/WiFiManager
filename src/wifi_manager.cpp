@@ -1,12 +1,7 @@
 #include <Arduino.h>
+#include <WiFi.h>
 #include <ESPmDNS.h>
 #include <DNSServer.h>
-#include <HTTPClient.h>
-#include <Preferences.h>
-#include <WebServer.h>
-#include <WiFi.h>
-#include <WiFiClient.h>
-#include <WiFiClientSecure.h>
 #include <esp_http_server.h>
 #include <ping/ping_sock.h>
 #include <nvs_flash.h>
@@ -32,13 +27,15 @@ char ST_gw[16] = "192.168.0.1";    // gateway to internet, normally router IP
 char ST_dns1[16] = "";             // DNS Server, can be router IP (needed for SNTP)
 char ST_dns2[16] = "";             // alternative DNS Server, can be blank
 
-constexpr auto startWifiTimeout_ms = 15000;  // timeout WL_CONNECTED after board start
+#define START_WIFI_WAIT_SEC 15  // timeout WL_CONNECTED after board start
 
 static bool APstarted = false;  // internal flag AP state
+static httpd_handle_t cfgPortalHttpServer = NULL;
 
 #pragma region "Ping"
 
-#define wifiTimeoutSecs 30  // how often to check wifi status
+#define PING_INTERVAL_SEC 30  // how often to check wifi status
+
 static esp_ping_handle_t pingHandle = NULL;
 static void startPing();
 
@@ -112,7 +109,7 @@ static void onWiFiEvent(WiFiEvent_t event) {
         LOG_INF("Wifi event: STA stopped %s", ST_SSID);
     else if (event == ARDUINO_EVENT_WIFI_AP_START) {   
         if (!strcmp(WiFi.softAPSSID().c_str(), AP_SSID)) {  // filter default AP "ESP_xxxxxx"
-            LOG_INF("Wifi event: AP ssid: %s started, use 'http://%s' to connect",
+            LOG_INF("Wifi event: AP_START: ssid: %s, use 'http://%s' to connect",
                     WiFi.softAPSSID().c_str(),
                     WiFi.softAPIP().toString().c_str());
             APstarted = true;
@@ -122,7 +119,7 @@ static void onWiFiEvent(WiFiEvent_t event) {
         }
     } else if (event == ARDUINO_EVENT_WIFI_AP_STOP) {
         if (!strcmp(WiFi.softAPSSID().c_str(), AP_SSID)) {
-            LOG_INF("Wifi event: AP stopped: %s", WiFi.softAPSSID().c_str());
+            LOG_INF("Wifi event: AP_STOP: %s", WiFi.softAPSSID().c_str());
             APstarted = false;
 #if (AP_DNS_ENABLE)
             stopDnsServer();
@@ -162,7 +159,8 @@ static bool setWifiAP() {
 static bool setWifiSTA() {
     if (strlen(ST_SSID)) {
         
-        WiFi.mode(WIFI_STA);
+        if (!APstarted)
+            WiFi.mode(WIFI_STA);
 
         if (strlen(ST_ip)) {
             IPAddress _ip, _gw, _sn, _dns1, _dns2;
@@ -217,7 +215,7 @@ bool startWifi(bool firstcall) {
         LOG_INF("check WiFi status");
         uint32_t startAttemptTime = millis();
         // Stop trying on failure timeout, will try to reconnect later by ping
-        while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < startWifiTimeout_ms) {
+        while (!WifiStationConnected() && (millis() - startAttemptTime < START_WIFI_WAIT_SEC * 1000)) {
             delay(500);
         }
 
@@ -225,20 +223,25 @@ bool startWifi(bool firstcall) {
         if (firstcall)
             setupMdnsHost();
 #endif
-
-        if (!pingHandle)
-            startPing();
+        startPing();
     }
 
-    if (!station || (firstcall && (WiFi.status() != WL_CONNECTED))) {
+    if (!station || (firstcall && !WifiStationConnected())) {
         setWifiAP();
         startCfgPortalServer();
     }
 
-    return (WiFi.status() == WL_CONNECTED);
+    return WifiStationConnected();
 }
 
 static void pingSuccess(esp_ping_handle_t hdl, void *args) {
+    if (APstarted) {
+        LOG_INF("pingSuccess: AP stop");
+        if (cfgPortalHttpServer) {
+            httpd_stop(cfgPortalHttpServer);
+        }
+        WiFi.mode(WIFI_STA);
+    }
 }
 
 static void pingTimeout(esp_ping_handle_t hdl, void *args) {
@@ -247,13 +250,17 @@ static void pingTimeout(esp_ping_handle_t hdl, void *args) {
 }
 
 static void startPing() {
+    if (pingHandle != NULL) {
+        return;
+    }
+
     IPAddress ipAddr = WiFi.gatewayIP();
     ip_addr_t pingDest;
     IP_ADDR4(&pingDest, ipAddr[0], ipAddr[1], ipAddr[2], ipAddr[3]);
     esp_ping_config_t pingConfig = ESP_PING_DEFAULT_CONFIG();
     pingConfig.target_addr = pingDest;
     pingConfig.count = ESP_PING_COUNT_INFINITE;
-    pingConfig.interval_ms = wifiTimeoutSecs * 1000;
+    pingConfig.interval_ms = PING_INTERVAL_SEC * 1000;
     pingConfig.timeout_ms = 5000;
 #if CONFIG_IDF_TARGET_ESP32S3
     pingConfig.task_stack_size = 1024 * 6;
@@ -272,7 +279,7 @@ static void startPing() {
     LOG_INF("Started ping monitoring");
 }
 
-void stopPing() {
+static void stopPing() {
     if (pingHandle != NULL) {
         esp_ping_stop(pingHandle);
         esp_ping_delete_session(pingHandle);
@@ -360,16 +367,16 @@ static esp_err_t cfgHandler(httpd_req_t *req) {
             
             LOG_INF(R"~(Check connection to SSID="%s", Pass="%s")~", ssid_decode, pswd_decode);
             
+            stopPing();
             WiFi.disconnect(true);
-
             WiFi.begin(ssid_decode, pswd_decode);
 
             uint32_t startAttemptTime = millis();
-            while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 5000) {
+            while (!WifiStationConnected() && millis() - startAttemptTime < 5000) {
                 delay(500);
             }
 
-            if (WiFi.status() == WL_CONNECTED) {
+            if (WifiStationConnected()) {
                 httpd_resp_set_hdr(req, "Connection", "close");
                 httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
                 httpd_resp_set_type(req, "text/html");
@@ -406,14 +413,12 @@ static esp_err_t cfgHandler(httpd_req_t *req) {
     return indexHandler(req);
 }
 
-static httpd_handle_t cfgPortalHttpServer = NULL;
-
 static void startCfgPortalServer() {
 
     const uint8_t WEB_PORT = 80;
     const uint8_t MAX_CLIENTS = 1;
 
-    if (cfgPortalActive())
+    if (cfgPortalHttpServer)
         return;
 
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
@@ -502,4 +507,8 @@ void cleanWifiAuthData() {
     memset(ST_Pass, 0, sizeof(ST_Pass));
     memset(ST_gw, 0, sizeof(ST_gw));
     saveWifiAuthData();
+}
+
+bool WifiStationConnected() {
+    return WiFi.status() == WL_CONNECTED;
 }
