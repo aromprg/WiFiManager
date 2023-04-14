@@ -45,23 +45,25 @@ static void startPing();
 
 #if (AP_DNS_ENABLE)
 
-#define DNS_PORT    53
-DNSServer dnsServer;
-
+DNSServer *p_dnsServer = NULL;
 static TaskHandle_t dnsServerHandle = NULL;
 
 static void DnsServerTask(void *parameter) {
     while (true) {
-        dnsServer.processNextRequest();
+        p_dnsServer->processNextRequest();
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
 
 static void startDnsServer() {
+    const auto DNS_PORT = 53;
     if (!dnsServerHandle) {
-        dnsServer.start(DNS_PORT, "*", WiFi.softAPIP()); // all DNS request
-        xTaskCreate(&DnsServerTask, "Dnstask", 1024 * 2, NULL, tskIDLE_PRIORITY + 1, &dnsServerHandle);
-        LOG_INF("startDnsServer");
+        p_dnsServer = new DNSServer;
+        if (p_dnsServer) {
+            p_dnsServer->start(DNS_PORT, "*", WiFi.softAPIP());  // all DNS request
+            xTaskCreate(&DnsServerTask, "Dnstask", 1024 * 2, NULL, tskIDLE_PRIORITY + 1, &dnsServerHandle);
+            LOG_INF("startDnsServer");
+        }
     }
 }
 
@@ -69,7 +71,9 @@ static void stopDnsServer() {
     if (dnsServerHandle) {
         vTaskDelete(dnsServerHandle);
         dnsServerHandle = NULL;
-        dnsServer.stop();
+        p_dnsServer->stop();
+        delete p_dnsServer;
+        p_dnsServer = NULL;
     }
 }
 
