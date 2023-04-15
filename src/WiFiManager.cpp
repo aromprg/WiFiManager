@@ -6,9 +6,17 @@
 #include <ping/ping_sock.h>
 #include <nvs_flash.h>
 #include <nvs.h>
+#include "WiFiManager.h"
 
-#include "wifi_manager.h"
-#include "utils.h"
+#if defined(WFM_SHOW_LOG)
+#define LOG_INF(format, ...) Serial.printf(format "\n", ##__VA_ARGS__)
+#define LOG_WRN(format, ...) Serial.printf(format "\n", ##__VA_ARGS__)
+#define LOG_ERR(format, ...) Serial.printf(format "\n", ##__VA_ARGS__)
+#else
+#define LOG_INF(format, ...)
+#define LOG_WRN(format, ...)
+#define LOG_ERR(format, ...)
+#endif
 
 // maximum size of a SSID name. 32 is IEEE standard. @warning limit is also hard coded in wifi_config_t. Never extend this value
 #define MAX_SSID_SIZE 32
@@ -359,10 +367,10 @@ static esp_err_t cfgHandler(httpd_req_t *req) {
     char *pswd = strstr(buf, pswd_str);
 
     if (ssid && pswd) {
-        char *pswd_decode = url_decode(pswd + sizeof(pswd_str) - 1);
+        char *pswd_decode = WiFiManagerClass::url_decode(pswd + sizeof(pswd_str) - 1);
         *pswd = '\0';
 
-        char *ssid_decode = url_decode(ssid + sizeof(ssid_str) - 1);
+        char *ssid_decode = WiFiManagerClass::url_decode(ssid + sizeof(ssid_str) - 1);
 
         size_t ssid_decode_len = strlen(ssid_decode);
         size_t pswd_decode_len = strlen(pswd_decode);
@@ -404,7 +412,10 @@ static esp_err_t cfgHandler(httpd_req_t *req) {
                 free(ssid_decode);
                 free(pswd_decode);
 
-                doRestart("cfg portal");
+                LOG_INF("restart");
+                Serial.flush();
+                delay(500);
+                ESP.restart();
 
                 return ESP_OK;
             }
@@ -510,6 +521,10 @@ static void saveWifiAuthData() {
 //                     WiFiManagerClass                   //
 ////////////////////////////////////////////////////////////
 
+WiFiManagerClass::WiFiManagerClass() {
+
+}
+
 bool WiFiManagerClass::start() {
     return startWifi(true);
 }
@@ -528,5 +543,62 @@ void WiFiManagerClass::cleanWifiAuthData() {
     memset(ST_gw, 0, sizeof(ST_gw));
     saveWifiAuthData();
 };
+
+/* Converts a hex character to its integer value */
+static char from_hex(char ch) {
+    return isdigit(ch) ? ch - '0' : tolower(ch) - 'a' + 10;
+}
+
+/* Converts an integer value to its hex character*/
+static char to_hex(char code) {
+    static const char hex[] = "0123456789abcdef";
+    return hex[code & 15];
+}
+
+/* Returns a url-encoded version of str */
+/* IMPORTANT: be sure to free() the returned string after use */
+char *WiFiManagerClass::url_encode(char *str) {
+    char *pstr = str, *buf = (char *)malloc(strlen(str) * 3 + 1), *pbuf = buf;
+    while (*pstr) {
+        if (isalnum(*pstr) || *pstr == '-' || *pstr == '_' || *pstr == '.' || *pstr == '~')
+            *pbuf++ = *pstr;
+        else if (*pstr == ' ')
+            *pbuf++ = '+';
+        else
+            *pbuf++ = '%', *pbuf++ = to_hex(*pstr >> 4), *pbuf++ = to_hex(*pstr & 15);
+        pstr++;
+    }
+    *pbuf = '\0';
+    return buf;
+}
+
+/* Returns a url-decoded version of str */
+/* IMPORTANT: be sure to free() the returned string after use */
+char *WiFiManagerClass::url_decode(char *str) {
+    char *pstr = str, *buf = (char *)malloc(strlen(str) + 1), *pbuf = buf;
+    while (*pstr) {
+        if (*pstr == '%') {
+            if (pstr[1] && pstr[2]) {
+                *pbuf++ = from_hex(pstr[1]) << 4 | from_hex(pstr[2]);
+                pstr += 2;
+            }
+        } else if (*pstr == '+') {
+            *pbuf++ = ' ';
+        } else {
+            *pbuf++ = *pstr;
+        }
+        pstr++;
+    }
+    *pbuf = '\0';
+    return buf;
+}
+
+void WiFiManagerClass::debugMemory(const char *caller) {
+    log_e("%s > Free: heap %u, block: %u, pSRAM %u\n",
+            caller,
+            ESP.getFreeHeap(),
+            heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
+            ESP.getFreePsram());
+}
 
 WiFiManagerClass WiFiManager;

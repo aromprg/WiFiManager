@@ -1,8 +1,6 @@
 #include <Arduino.h>
 #include <WebServer.h>
-
-#include "wifi_manager.h"
-#include "utils.h"
+#include "WiFiManager.h"
 
 WebServer server(80);
 
@@ -65,7 +63,7 @@ void loop() {
                 Serial.println("cleanWifiAuthData");
                 break;
             case 'm':
-                debugMemory("debugMemory");
+                WiFiManager.debugMemory("debugMemory");
                 break;
             case 'r':
                 ESP.restart();

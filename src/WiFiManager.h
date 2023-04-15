@@ -24,12 +24,15 @@
 class WiFiManagerClass {
    private:
    public:
-    WiFiManagerClass(){};
+    WiFiManagerClass();
     ~WiFiManagerClass(){};
     bool start();
     bool isConnected();
     bool isCfgPortalActive();
     void cleanWifiAuthData();
+    static char *url_encode(char *str);
+    static char *url_decode(char *str);
+    static void debugMemory(const char *caller);
 };
 
 extern WiFiManagerClass WiFiManager;
