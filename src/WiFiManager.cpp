@@ -25,8 +25,8 @@
 #define MAX_PSWD_SIZE 64
 
 char hostName[15] = "";                // Default Host name
-char ST_SSID[MAX_SSID_SIZE + 1] = "";  // Default router ssid
-char ST_Pass[MAX_PSWD_SIZE + 1] = "";  // Default router passd
+char ST_ssid[MAX_SSID_SIZE + 1] = "";  // Default router ssid
+char ST_pswd[MAX_PSWD_SIZE + 1] = "";  // Default router passd
 
 // leave following blank for dhcp
 char ST_ip[16] = "192.168.0.200";  // Static IP
@@ -51,7 +51,7 @@ static void startPing();
 
 #pragma region "DNS"
 
-#if (AP_DNS_ENABLE)
+#if (WFM_AP_DNS_ENABLE)
 
 DNSServer *p_dnsServer = NULL;
 static TaskHandle_t dnsServerHandle = NULL;
@@ -93,7 +93,7 @@ static void startCfgPortalServer();
 static void loadWifiAuthData();
 static void saveWifiAuthData();
 
-#if ST_MDNS_ENABLE
+#if WFM_ST_MDNS_ENABLE
 static void setupMdnsHost() {
     if (strlen(hostName)) {
         // set up MDNS service
@@ -116,24 +116,24 @@ static void onWiFiEvent(WiFiEvent_t event) {
     else if (event == ARDUINO_EVENT_WIFI_SCAN_DONE)
         ;
     else if (event == ARDUINO_EVENT_WIFI_STA_START)
-        LOG_INF("Wifi event: STA started, connecting to: %s", ST_SSID);
+        LOG_INF("Wifi event: STA started, connecting to: %s", ST_ssid);
     else if (event == ARDUINO_EVENT_WIFI_STA_STOP)
-        LOG_INF("Wifi event: STA stopped %s", ST_SSID);
+        LOG_INF("Wifi event: STA stopped %s", ST_ssid);
     else if (event == ARDUINO_EVENT_WIFI_AP_START) {   
-        if (!strcmp(WiFi.softAPSSID().c_str(), AP_SSID)) {  // filter default AP "ESP_xxxxxx"
+        if (!strcmp(WiFi.softAPSSID().c_str(), WFM_AP_SSID)) {  // filter default AP "ESP_xxxxxx"
             LOG_INF("Wifi event: AP_START: ssid: %s, use 'http://%s' to connect",
                     WiFi.softAPSSID().c_str(),
                     WiFi.softAPIP().toString().c_str());
             APstarted = true;
-#if (AP_DNS_ENABLE)
+#if (WFM_AP_DNS_ENABLE)
             startDnsServer();
 #endif
         }
     } else if (event == ARDUINO_EVENT_WIFI_AP_STOP) {
-        if (!strcmp(WiFi.softAPSSID().c_str(), AP_SSID)) {
+        if (!strcmp(WiFi.softAPSSID().c_str(), WFM_AP_SSID)) {
             LOG_INF("Wifi event: AP_STOP: %s", WiFi.softAPSSID().c_str());
             APstarted = false;
-#if (AP_DNS_ENABLE)
+#if (WFM_AP_DNS_ENABLE)
             stopDnsServer();
 #endif
         }
@@ -144,7 +144,7 @@ static void onWiFiEvent(WiFiEvent_t event) {
     else if (event == ARDUINO_EVENT_WIFI_AP_STAIPASSIGNED)
         ;
     else if (event == ARDUINO_EVENT_WIFI_STA_CONNECTED)
-        LOG_INF("Wifi event: STA connection to %s", ST_SSID);
+        LOG_INF("Wifi event: STA connection to %s", ST_ssid);
     else if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED)
         LOG_INF("Wifi event: STA disconnected");
     else if (event == ARDUINO_EVENT_WIFI_AP_STACONNECTED)
@@ -159,8 +159,8 @@ static bool setWifiAP() {
     if (!APstarted) {
         char ap_ssid[MAX_SSID_SIZE + 1];
         char ap_pswd[MAX_PSWD_SIZE + 1];
-        snprintf(ap_ssid, sizeof(ap_ssid), "%s", AP_SSID);
-        snprintf(ap_pswd, sizeof(ap_pswd), "%s", AP_PSWD);
+        snprintf(ap_ssid, sizeof(ap_ssid), "%s", WFM_AP_SSID);
+        snprintf(ap_pswd, sizeof(ap_pswd), "%s", WFM_AP_PSWD);
 
         WiFi.mode(WIFI_AP_STA);
         WiFi.softAP(ap_ssid, ap_pswd, 1, 0, 1, false); // only 1 client
@@ -169,7 +169,7 @@ static bool setWifiAP() {
 }
 
 static bool setWifiSTA() {
-    if (strlen(ST_SSID)) {
+    if (strlen(ST_ssid)) {
         
         if (!APstarted)
             WiFi.mode(WIFI_STA);
@@ -197,7 +197,7 @@ static bool setWifiSTA() {
         } else
             LOG_INF("Wifi Station IP from DHCP");
 
-        WiFi.begin(ST_SSID, ST_Pass);
+        WiFi.begin(ST_ssid, ST_pswd);
         return true;
     }
 
@@ -210,7 +210,7 @@ static bool startWifi(bool firstcall) {
     if (firstcall) {
         
         loadWifiAuthData();
-        snprintf(hostName, sizeof(hostName), "%s", HOSTNAME);
+        snprintf(hostName, sizeof(hostName), "%s", WFM_HOSTNAME);
 
         WiFi.mode(WIFI_OFF);
         WiFi.persistent(false);        // prevent the flash storage WiFi credentials
@@ -231,7 +231,7 @@ static bool startWifi(bool firstcall) {
             delay(500);
         }
 
-#if ST_MDNS_ENABLE
+#if WFM_ST_MDNS_ENABLE
         if (firstcall)
             setupMdnsHost();
 #endif
@@ -403,8 +403,8 @@ static esp_err_t cfgHandler(httpd_req_t *req) {
                 httpd_resp_sendstr_chunk(req, end_chunk_html);
                 httpd_resp_sendstr_chunk(req, NULL);
 
-                memcpy(ST_SSID, ssid_decode, ssid_decode_len + 1);
-                memcpy(ST_Pass, pswd_decode, pswd_decode_len + 1);
+                memcpy(ST_ssid, ssid_decode, ssid_decode_len + 1);
+                memcpy(ST_pswd, pswd_decode, pswd_decode_len + 1);
                 memcpy(ST_gw, WiFi.gatewayIP().toString().c_str(), sizeof(ST_gw));
 
                 saveWifiAuthData();
@@ -483,13 +483,13 @@ static void loadWifiAuthData() {
     } else {
                 
         if (ESP_OK == nvs_get_str(nvs_handle, "ssid", NULL, &nvs_required_size)) {
-            if (nvs_required_size <= sizeof(ST_SSID))
-                nvs_get_str(nvs_handle, "ssid", ST_SSID, &nvs_required_size);
+            if (nvs_required_size <= sizeof(ST_ssid))
+                nvs_get_str(nvs_handle, "ssid", ST_ssid, &nvs_required_size);
         }
 
         if (ESP_OK == nvs_get_str(nvs_handle, "pswd", NULL, &nvs_required_size)) {
-            if (nvs_required_size <= sizeof(ST_Pass))
-                nvs_get_str(nvs_handle, "pswd", ST_Pass, &nvs_required_size);
+            if (nvs_required_size <= sizeof(ST_pswd))
+                nvs_get_str(nvs_handle, "pswd", ST_pswd, &nvs_required_size);
         }
 
         if (ESP_OK == nvs_get_str(nvs_handle, "gateway", NULL, &nvs_required_size)) {
@@ -508,8 +508,8 @@ static void saveWifiAuthData() {
     if (err != ESP_OK) {
         LOG_ERR("Error (%s) opening NVS handle!", esp_err_to_name(err));
     } else {
-        nvs_set_str(nvs_handle, "ssid", ST_SSID);
-        nvs_set_str(nvs_handle, "pswd", ST_Pass);
+        nvs_set_str(nvs_handle, "ssid", ST_ssid);
+        nvs_set_str(nvs_handle, "pswd", ST_pswd);
         nvs_set_str(nvs_handle, "gateway", ST_gw);
         
         nvs_commit(nvs_handle);
@@ -525,21 +525,28 @@ WiFiManagerClass::WiFiManagerClass() {
 
 }
 
+/**
+ * Start connect to saved STA or config AP to set it
+ * @return true if STA is connected after wait timeout (will try to reconnect later by ping)
+ */
 bool WiFiManagerClass::start() {
     return startWifi(true);
 }
 
+/**
+ * is STA interface connected?
+ * @return true if STA is connected to an AP
+ */
 bool WiFiManagerClass::isConnected() {
     return WiFi.isConnected();
 }
 
-bool WiFiManagerClass::isCfgPortalActive() {
-    return cfgPortalActive();
-}
-
-void WiFiManagerClass::cleanWifiAuthData() {
-    memset(ST_SSID, 0, sizeof(ST_SSID));
-    memset(ST_Pass, 0, sizeof(ST_Pass));
+/**
+ * Clean saved WiFi settings (SSID, PSWD, gateway(router) IP)
+ */
+void WiFiManagerClass::cleanWiFiAuthData() {
+    memset(ST_ssid, 0, sizeof(ST_ssid));
+    memset(ST_pswd, 0, sizeof(ST_pswd));
     memset(ST_gw, 0, sizeof(ST_gw));
     saveWifiAuthData();
 };
@@ -555,8 +562,12 @@ static char to_hex(char code) {
     return hex[code & 15];
 }
 
-/* Returns a url-encoded version of str */
-/* IMPORTANT: be sure to free() the returned string after use */
+/**
+ * Returns a url-encoded version of str.
+ * @param str from pointer
+ * @return pointer to string
+ * @warning be sure to free() the returned string after use
+ */
 char *WiFiManagerClass::url_encode(char *str) {
     char *pstr = str, *buf = (char *)malloc(strlen(str) * 3 + 1), *pbuf = buf;
     while (*pstr) {
@@ -572,8 +583,12 @@ char *WiFiManagerClass::url_encode(char *str) {
     return buf;
 }
 
-/* Returns a url-decoded version of str */
-/* IMPORTANT: be sure to free() the returned string after use */
+/**
+ * Returns a url-decoded version of str.
+ * @param str from pointer
+ * @return pointer to string
+ * @warning be sure to free() the returned string after use
+ */
 char *WiFiManagerClass::url_decode(char *str) {
     char *pstr = str, *buf = (char *)malloc(strlen(str) + 1), *pbuf = buf;
     while (*pstr) {
@@ -593,6 +608,10 @@ char *WiFiManagerClass::url_decode(char *str) {
     return buf;
 }
 
+/**
+ * Print memory usage statistics.
+ * @param caller description pointer
+ */
 void WiFiManagerClass::debugMemory(const char *caller) {
     log_e("%s > Free: heap %u, block: %u, pSRAM %u\n",
             caller,

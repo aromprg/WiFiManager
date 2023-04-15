@@ -59,8 +59,8 @@ void loop() {
     if (Serial.available()) {
         switch (Serial.read()) {
             case '-':
-                WiFiManager.cleanWifiAuthData();
-                Serial.println("cleanWifiAuthData");
+                WiFiManager.cleanWiFiAuthData();
+                Serial.println("cleanWiFiAuthData");
                 break;
             case 'm':
                 WiFiManager.debugMemory("debugMemory");
