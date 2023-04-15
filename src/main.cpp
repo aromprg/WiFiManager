@@ -11,7 +11,7 @@ bool server_started = false;
 const char demo_page_html[] = R"rawliteral(
 <html>
 <head>
-<meta http-equiv='refresh' content='1'/>
+<meta http-equiv='refresh' content='2'/>
 <title>ESP32 Demo</title>
 <style>body {font-size:20px;}</style>
 </head>
@@ -37,7 +37,7 @@ void setup() {
     Serial.begin(115200);
     Serial.setDebugOutput(false);
 
-    startWifi();
+    WiFiManager.start();
 }
 
 void loop() {
@@ -45,7 +45,7 @@ void loop() {
     delay(1);  // allow the cpu to switch to other tasks
 
     if (!server_started) {
-        if (WifiStationConnected()) {
+        if (WiFiManager.isConnected()) {
             server_started = true;
             server.on("/", handleRoot);
             server.onNotFound([]() {
@@ -61,7 +61,7 @@ void loop() {
     if (Serial.available()) {
         switch (Serial.read()) {
             case '-':
-                cleanWifiAuthData();
+                WiFiManager.cleanWifiAuthData();
                 Serial.println("cleanWifiAuthData");
                 break;
             case 'm':

@@ -197,7 +197,7 @@ static bool setWifiSTA() {
     return false;
 }
 
-bool startWifi(bool firstcall) {
+static bool startWifi(bool firstcall) {
     // start wifi station (and wifi AP if allowed or station not defined)
     if (firstcall) {
         
@@ -219,7 +219,7 @@ bool startWifi(bool firstcall) {
         LOG_INF("check WiFi status");
         uint32_t startAttemptTime = millis();
         // Stop trying on failure timeout, will try to reconnect later by ping
-        while (!WifiStationConnected() && (millis() - startAttemptTime < START_WIFI_WAIT_SEC * 1000)) {
+        while (!WiFi.isConnected() && (millis() - startAttemptTime < START_WIFI_WAIT_SEC * 1000)) {
             delay(500);
         }
 
@@ -230,12 +230,12 @@ bool startWifi(bool firstcall) {
         startPing();
     }
 
-    if (!station || (firstcall && !WifiStationConnected())) {
+    if (!station || (firstcall && !WiFi.isConnected())) {
         setWifiAP();
         startCfgPortalServer();
     }
 
-    return WifiStationConnected();
+    return WiFi.isConnected();
 }
 
 static void pingSuccess(esp_ping_handle_t hdl, void *args) {
@@ -376,11 +376,11 @@ static esp_err_t cfgHandler(httpd_req_t *req) {
             WiFi.begin(ssid_decode, pswd_decode);
 
             uint32_t startAttemptTime = millis();
-            while (!WifiStationConnected() && millis() - startAttemptTime < 5000) {
+            while (!WiFi.isConnected() && millis() - startAttemptTime < 5000) {
                 delay(500);
             }
 
-            if (WifiStationConnected()) {
+            if (WiFi.isConnected()) {
                 httpd_resp_set_hdr(req, "Connection", "close");
                 httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
                 httpd_resp_set_type(req, "text/html");
@@ -446,7 +446,7 @@ static void startCfgPortalServer() {
     }
 }
 
-bool cfgPortalActive() {
+static bool cfgPortalActive() {
     return cfgPortalHttpServer;
 }
 
@@ -506,13 +506,27 @@ static void saveWifiAuthData() {
     }
 }
 
-void cleanWifiAuthData() {
+////////////////////////////////////////////////////////////
+//                     WiFiManagerClass                   //
+////////////////////////////////////////////////////////////
+
+bool WiFiManagerClass::start() {
+    return startWifi(true);
+}
+
+bool WiFiManagerClass::isConnected() {
+    return WiFi.isConnected();
+}
+
+bool WiFiManagerClass::isCfgPortalActive() {
+    return cfgPortalActive();
+}
+
+void WiFiManagerClass::cleanWifiAuthData() {
     memset(ST_SSID, 0, sizeof(ST_SSID));
     memset(ST_Pass, 0, sizeof(ST_Pass));
     memset(ST_gw, 0, sizeof(ST_gw));
     saveWifiAuthData();
-}
+};
 
-bool WifiStationConnected() {
-    return WiFi.status() == WL_CONNECTED;
-}
+WiFiManagerClass WiFiManager;
