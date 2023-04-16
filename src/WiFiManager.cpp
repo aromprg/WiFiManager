@@ -24,16 +24,18 @@
 // maximum size of a WPA2 passkey. 64 is IEEE standard. @warning limit is also hard coded in wifi_config_t. Never extend this value
 #define MAX_PSWD_SIZE 64
 
-char hostName[15] = "";                // Default Host name
-char ST_ssid[MAX_SSID_SIZE + 1] = "";  // Default router ssid
-char ST_pswd[MAX_PSWD_SIZE + 1] = "";  // Default router passd
+static char HostName[16] = "";                // Default Host name
+static char AP_ssid[MAX_SSID_SIZE + 1] = "";  // Access Poin ssid
+static char AP_pswd[MAX_PSWD_SIZE + 1] = "";  // Access Poin password
+static char ST_ssid[MAX_SSID_SIZE + 1] = "";  // Router ssid
+static char ST_pswd[MAX_PSWD_SIZE + 1] = "";  // Router password
 
 // leave following blank for dhcp
-char ST_ip[16] = "192.168.0.200";  // Static IP
-char ST_sn[16] = "255.255.255.0";  // subnet normally 255.255.255.0
-char ST_gw[16] = "192.168.0.1";    // gateway to internet, normally router IP
-char ST_dns1[16] = "";             // DNS Server, can be router IP (needed for SNTP)
-char ST_dns2[16] = "";             // alternative DNS Server, can be blank
+static char ST_ip[16] = "";    // Static IP
+static char ST_sn[16] = "";    // subnet normally 255.255.255.0
+static char ST_gw[16] = "";    // gateway to internet, normally router IP
+static char ST_dns1[16] = "";  // DNS Server, can be router IP (needed for SNTP)
+static char ST_dns2[16] = "";  // alternative DNS Server, can be blank
 
 #define START_WIFI_WAIT_SEC 15  // timeout WL_CONNECTED after board start
 
@@ -90,24 +92,76 @@ static void stopDnsServer() {
 #pragma endregion
 
 static void startCfgPortalServer();
-static void loadWifiAuthData();
-static void saveWifiAuthData();
+static void stopCfgPortalServer();
 
 #if WFM_ST_MDNS_ENABLE
 static void setupMdnsHost() {
-    if (strlen(hostName)) {
-        // set up MDNS service
-        if (MDNS.begin(hostName)) {
-            // Add service to MDNS
-            MDNS.addService("http", "tcp", 80);
-            // MDNS.addService("ws", "udp", 83);
-            // MDNS.addService("ftp", "tcp", 21);
-            LOG_INF("mDNS service: http://%s.local", hostName);
-        } else
-            LOG_ERR("mDNS host: %s Failed", hostName);
-    }
+    if (MDNS.begin(HostName)) {
+        // Add service to MDNS
+        MDNS.addService("http", "tcp", 80);
+        // MDNS.addService("ws", "udp", 83);
+        // MDNS.addService("ftp", "tcp", 21);
+        LOG_INF("mDNS service: http://%s.local", HostName);
+    } else
+        LOG_ERR("mDNS host: %s Failed", HostName);
 }
 #endif
+
+static void loadWiFiAuthData() {
+    // Initialize NVS
+    esp_err_t err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        // NVS partition was truncated and needs to be erased
+        // Retry nvs_flash_init
+        nvs_flash_erase();
+        err = nvs_flash_init();
+    }
+
+    if (err != ESP_OK)
+        return;
+
+    nvs_handle_t nvs_handle;
+    size_t nvs_required_size;
+    
+    err = nvs_open("wifiAuthData", NVS_READONLY, &nvs_handle);
+    if (err != ESP_OK) {
+        LOG_ERR("Error (%s) opening NVS handle!", esp_err_to_name(err));
+    } else {
+                
+        if (ESP_OK == nvs_get_str(nvs_handle, "ssid", NULL, &nvs_required_size)) {
+            if (nvs_required_size <= sizeof(ST_ssid))
+                nvs_get_str(nvs_handle, "ssid", ST_ssid, &nvs_required_size);
+        }
+
+        if (ESP_OK == nvs_get_str(nvs_handle, "pswd", NULL, &nvs_required_size)) {
+            if (nvs_required_size <= sizeof(ST_pswd))
+                nvs_get_str(nvs_handle, "pswd", ST_pswd, &nvs_required_size);
+        }
+
+        if (ESP_OK == nvs_get_str(nvs_handle, "gateway", NULL, &nvs_required_size)) {
+            if (nvs_required_size <= sizeof(ST_gw))
+                nvs_get_str(nvs_handle, "gateway", ST_gw, &nvs_required_size);
+        }
+
+        nvs_close(nvs_handle);
+    }
+}
+
+static void saveWiFiAuthData() {
+    esp_err_t err;
+    nvs_handle_t nvs_handle;
+    err = nvs_open("wifiAuthData", NVS_READWRITE, &nvs_handle);
+    if (err != ESP_OK) {
+        LOG_ERR("Error (%s) opening NVS handle!", esp_err_to_name(err));
+    } else {
+        nvs_set_str(nvs_handle, "ssid", ST_ssid);
+        nvs_set_str(nvs_handle, "pswd", ST_pswd);
+        nvs_set_str(nvs_handle, "gateway", ST_gw);
+        
+        nvs_commit(nvs_handle);
+        nvs_close(nvs_handle);
+    }
+}
 
 static void onWiFiEvent(WiFiEvent_t event) {
     // callback to report on wifi events
@@ -120,7 +174,7 @@ static void onWiFiEvent(WiFiEvent_t event) {
     else if (event == ARDUINO_EVENT_WIFI_STA_STOP)
         LOG_INF("Wifi event: STA stopped %s", ST_ssid);
     else if (event == ARDUINO_EVENT_WIFI_AP_START) {   
-        if (!strcmp(WiFi.softAPSSID().c_str(), WFM_AP_SSID)) {  // filter default AP "ESP_xxxxxx"
+        if (!strcmp(WiFi.softAPSSID().c_str(), AP_ssid)) {  // filter default AP "ESP_xxxxxx"
             LOG_INF("Wifi event: AP_START: ssid: %s, use 'http://%s' to connect",
                     WiFi.softAPSSID().c_str(),
                     WiFi.softAPIP().toString().c_str());
@@ -130,7 +184,7 @@ static void onWiFiEvent(WiFiEvent_t event) {
 #endif
         }
     } else if (event == ARDUINO_EVENT_WIFI_AP_STOP) {
-        if (!strcmp(WiFi.softAPSSID().c_str(), WFM_AP_SSID)) {
+        if (!strcmp(WiFi.softAPSSID().c_str(), AP_ssid)) {
             LOG_INF("Wifi event: AP_STOP: %s", WiFi.softAPSSID().c_str());
             APstarted = false;
 #if (WFM_AP_DNS_ENABLE)
@@ -157,15 +211,10 @@ static void onWiFiEvent(WiFiEvent_t event) {
 
 static bool setWifiAP() {
     if (!APstarted) {
-        char ap_ssid[MAX_SSID_SIZE + 1];
-        char ap_pswd[MAX_PSWD_SIZE + 1];
-        snprintf(ap_ssid, sizeof(ap_ssid), "%s", WFM_AP_SSID);
-        snprintf(ap_pswd, sizeof(ap_pswd), "%s", WFM_AP_PSWD);
-
         WiFi.mode(WIFI_AP_STA);
-        WiFi.softAP(ap_ssid, ap_pswd, 1, 0, 1, false); // only 1 client
+        return WiFi.softAP(AP_ssid, AP_pswd, 1, 0, 1, false); // only 1 client
     }
-    return true;
+    return false;
 }
 
 static bool setWifiSTA() {
@@ -208,16 +257,12 @@ static bool setWifiSTA() {
 static bool startWifi(bool firstcall) {
     // start wifi station (and wifi AP if allowed or station not defined)
     if (firstcall) {
-        
-        loadWifiAuthData();
-        snprintf(hostName, sizeof(hostName), "%s", WFM_HOSTNAME);
-
         WiFi.mode(WIFI_OFF);
         WiFi.persistent(false);        // prevent the flash storage WiFi credentials
         WiFi.setAutoReconnect(false);  // Set whether module will attempt to reconnect to an access point in case it is disconnected
         WiFi.softAPdisconnect(false);  // kill rogue AP on startup
         WiFi.disconnect(true);
-        WiFi.setHostname(hostName);
+        WiFi.setHostname(HostName);
         WiFi.onEvent(onWiFiEvent);
     }
 
@@ -249,9 +294,7 @@ static bool startWifi(bool firstcall) {
 static void pingSuccess(esp_ping_handle_t hdl, void *args) {
     if (APstarted) {
         LOG_INF("pingSuccess: AP stop");
-        if (cfgPortalHttpServer) {
-            httpd_stop(cfgPortalHttpServer);
-        }
+        stopCfgPortalServer();
         WiFi.mode(WIFI_STA);
     }
 }
@@ -267,6 +310,11 @@ static void startPing() {
     }
 
     IPAddress ipAddr = WiFi.gatewayIP();
+
+    if (ipAddr == INADDR_NONE) {
+        ipAddr.fromString(ST_gw);
+    }
+
     ip_addr_t pingDest;
     IP_ADDR4(&pingDest, ipAddr[0], ipAddr[1], ipAddr[2], ipAddr[3]);
     esp_ping_config_t pingConfig = ESP_PING_DEFAULT_CONFIG();
@@ -407,7 +455,7 @@ static esp_err_t cfgHandler(httpd_req_t *req) {
                 memcpy(ST_pswd, pswd_decode, pswd_decode_len + 1);
                 memcpy(ST_gw, WiFi.gatewayIP().toString().c_str(), sizeof(ST_gw));
 
-                saveWifiAuthData();
+                saveWiFiAuthData();
 
                 free(ssid_decode);
                 free(pswd_decode);
@@ -457,63 +505,10 @@ static void startCfgPortalServer() {
     }
 }
 
-static bool cfgPortalActive() {
-    return cfgPortalHttpServer;
-}
-
-static void loadWifiAuthData() {
-    // Initialize NVS
-    esp_err_t err = nvs_flash_init();
-    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        // NVS partition was truncated and needs to be erased
-        // Retry nvs_flash_init
-        nvs_flash_erase();
-        err = nvs_flash_init();
-    }
-
-    if (err != ESP_OK)
-        return;
-
-    nvs_handle_t nvs_handle;
-    size_t nvs_required_size;
-    
-    err = nvs_open("wifiAuthData", NVS_READONLY, &nvs_handle);
-    if (err != ESP_OK) {
-        LOG_ERR("Error (%s) opening NVS handle!", esp_err_to_name(err));
-    } else {
-                
-        if (ESP_OK == nvs_get_str(nvs_handle, "ssid", NULL, &nvs_required_size)) {
-            if (nvs_required_size <= sizeof(ST_ssid))
-                nvs_get_str(nvs_handle, "ssid", ST_ssid, &nvs_required_size);
-        }
-
-        if (ESP_OK == nvs_get_str(nvs_handle, "pswd", NULL, &nvs_required_size)) {
-            if (nvs_required_size <= sizeof(ST_pswd))
-                nvs_get_str(nvs_handle, "pswd", ST_pswd, &nvs_required_size);
-        }
-
-        if (ESP_OK == nvs_get_str(nvs_handle, "gateway", NULL, &nvs_required_size)) {
-            if (nvs_required_size <= sizeof(ST_gw))
-                nvs_get_str(nvs_handle, "gateway", ST_gw, &nvs_required_size);
-        }
-
-        nvs_close(nvs_handle);
-    }
-}
-
-static void saveWifiAuthData() {
-    esp_err_t err;
-    nvs_handle_t nvs_handle;
-    err = nvs_open("wifiAuthData", NVS_READWRITE, &nvs_handle);
-    if (err != ESP_OK) {
-        LOG_ERR("Error (%s) opening NVS handle!", esp_err_to_name(err));
-    } else {
-        nvs_set_str(nvs_handle, "ssid", ST_ssid);
-        nvs_set_str(nvs_handle, "pswd", ST_pswd);
-        nvs_set_str(nvs_handle, "gateway", ST_gw);
-        
-        nvs_commit(nvs_handle);
-        nvs_close(nvs_handle);
+static void stopCfgPortalServer() {
+    if (cfgPortalHttpServer) {
+        httpd_stop(cfgPortalHttpServer);
+        cfgPortalHttpServer = NULL;
     }
 }
 
@@ -522,33 +517,90 @@ static void saveWifiAuthData() {
 ////////////////////////////////////////////////////////////
 
 WiFiManagerClass::WiFiManagerClass() {
-
+    snprintf(AP_ssid, sizeof(AP_ssid), "ESP_%04X", (uint16_t)ESP.getEfuseMac());
+    snprintf(HostName, sizeof(HostName), "%s", AP_ssid);
+    loadWiFiAuthData();
 }
 
 /**
- * Start connect to saved STA or config AP to set it
- * @return true if STA is connected after wait timeout (will try to reconnect later by ping)
+ * Set static STAtion IP-address.
+ * @param ip Static IP
+ * @param subnet Subnet normally 255.255.255.0
+ * @param gateway Gateway to internet, normally router IP (example 192.168.0.1) if not set
+ * @param dns1 DNS Server, can be router IP (needed for SNTP)
+ * @param dns2 Alternative DNS Server, can be blank
  */
-bool WiFiManagerClass::start() {
+void WiFiManagerClass::setStaticIP(const char *ip, const char *subnet, const char *gateway, const char *dns1, const char *dns2) {
+    if (ip)
+        snprintf(ST_ip, sizeof(ST_ip), "%s", ip);
+
+    if (subnet)
+        snprintf(ST_sn, sizeof(ST_sn), "%s", subnet);
+
+    if (gateway)
+        snprintf(ST_gw, sizeof(ST_gw), "%s", gateway);
+
+    if (dns1)
+        snprintf(ST_dns1, sizeof(ST_dns1), "%s", dns1);
+
+    if (dns2)
+        snprintf(ST_dns2, sizeof(ST_dns2), "%s", dns2);
+
+    // restart if needed
+    if (pingHandle != NULL) {
+        stopPing();
+        startWifi(false);
+    }
+}
+
+/**
+ * Access Point configuration.
+ * @param ssidAP Access Point SSID (if null - use the default name "ESP_XXXX", where XXXX is the end MAC-address of the device)
+ * @param passwordAP Access Point password (if null - use the blank password)
+ */
+void WiFiManagerClass::configAP(const char *ssidAP, const char *passwordAP) {
+    if (ssidAP)
+        snprintf(AP_ssid, sizeof(AP_ssid), "%s", ssidAP);
+
+    if (passwordAP) {
+        size_t len = strlen(passwordAP);
+        if (len && (len >= 8)) {
+            snprintf(AP_pswd, sizeof(AP_pswd), "%s", passwordAP);
+        } else if (len) {
+            LOG_WRN("passwordAP must contain at least 8 characters. Apply blank password");
+        }
+    }
+}
+
+/**
+ * Start connect to saved Station or config new Access Point to set it
+ * @return true if STA is connected after wait timeout (will try to reconnect later by ping)
+ * @param hostname optional Hostname (if null - use the current Access Point SSID)
+ */
+bool WiFiManagerClass::start(const char *hostname) {
+    if (hostname)
+        snprintf(HostName, sizeof(HostName), "%s", hostname);
+    else
+        snprintf(HostName, sizeof(HostName), "%s", AP_ssid);
     return startWifi(true);
 }
 
 /**
- * is STA interface connected?
- * @return true if STA is connected to an AP
+ * is STAtion interface connected?
+ * @return true if STAtion is connected to an AP
  */
 bool WiFiManagerClass::isConnected() {
     return WiFi.isConnected();
 }
 
 /**
- * Clean saved WiFi settings (SSID, PSWD, gateway(router) IP)
+ * Clean stored WiFi settings (ssid, password, gateway(router) IP)
  */
 void WiFiManagerClass::cleanWiFiAuthData() {
     memset(ST_ssid, 0, sizeof(ST_ssid));
     memset(ST_pswd, 0, sizeof(ST_pswd));
     memset(ST_gw, 0, sizeof(ST_gw));
-    saveWifiAuthData();
+    saveWiFiAuthData();
 };
 
 /* Converts a hex character to its integer value */

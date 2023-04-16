@@ -35,7 +35,9 @@ void setup() {
     Serial.begin(115200);
     Serial.setDebugOutput(false);
 
-    WiFiManager.start();
+    WiFiManager.setStaticIP();
+    WiFiManager.configAP("my_ap_ssid", "123456789");
+    WiFiManager.start("esp_hostname");
 }
 
 void loop() {

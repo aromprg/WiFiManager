@@ -1,18 +1,6 @@
 #ifndef WiFiManager_h
 #define WiFiManager_h
 
-#if !defined(WFM_AP_SSID)
-#define WFM_AP_SSID "iot_cfg"
-#endif
-
-#if !defined(WFM_AP_PSWD)
-#define WFM_AP_PSWD "espress.if"  // if not empty - must be at least 8 characters
-#endif
-
-#if !defined(WFM_HOSTNAME)
-#define WFM_HOSTNAME WFM_AP_SSID
-#endif
-
 #if !defined(WFM_ST_MDNS_ENABLE)
 #define WFM_ST_MDNS_ENABLE 0  // station mDNS service http://%HOSTNAME%.local"
 #endif
@@ -26,9 +14,16 @@ class WiFiManagerClass {
    public:
     WiFiManagerClass();
     ~WiFiManagerClass(){};
-    bool start();
+    bool start(const char *hostname = nullptr);
     bool isConnected();
     void cleanWiFiAuthData();
+    void setStaticIP(const char *ip = "192.168.0.200",
+                     const char *subnet = "255.255.255.0",
+                     const char *gateway = nullptr,
+                     const char *dns1 = nullptr,
+                     const char *dns2 = nullptr);
+    void configAP(const char *ssidAP = nullptr,
+               const char *passwordAP = nullptr);
     static char *url_encode(char *str);
     static char *url_decode(char *str);
     static void debugMemory(const char *caller);
