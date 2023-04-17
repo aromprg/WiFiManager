@@ -24,8 +24,8 @@ class WiFiManagerClass {
                      const char *dns2 = nullptr);
     void configAP(const char *ssidAP = nullptr,
                const char *passwordAP = nullptr);
-    static char *url_encode(char *str);
-    static char *url_decode(char *str);
+    static char *url_encode(const char *str);
+    static char *url_decode(const char *str);
     static void debugMemory(const char *caller);
 };
 

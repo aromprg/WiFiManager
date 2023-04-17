@@ -40,12 +40,10 @@ static char ST_dns2[16] = "";  // alternative DNS Server, can be blank
 #define START_WIFI_WAIT_SEC 15  // timeout WL_CONNECTED after board start
 
 static bool APstarted = false;  // internal flag AP state
-static httpd_handle_t cfgPortalHttpServer = NULL;
 
 #pragma region "Ping"
 
 #define PING_INTERVAL_SEC 30  // how often to check wifi status
-
 static esp_ping_handle_t pingHandle = NULL;
 static void startPing();
 
@@ -55,7 +53,7 @@ static void startPing();
 
 #if (WFM_AP_DNS_ENABLE)
 
-DNSServer *p_dnsServer = NULL;
+static DNSServer *p_dnsServer = NULL;
 static TaskHandle_t dnsServerHandle = NULL;
 
 static void DnsServerTask(void *parameter) {
@@ -91,8 +89,14 @@ static void stopDnsServer() {
 
 #pragma endregion
 
+#pragma region "Cfg Portal"
+
+static httpd_handle_t cfgPortalHttpServer = NULL;
+
 static void startCfgPortalServer();
 static void stopCfgPortalServer();
+
+#pragma endregion
 
 #if WFM_ST_MDNS_ENABLE
 static void setupMdnsHost() {
@@ -604,12 +608,12 @@ void WiFiManagerClass::cleanWiFiAuthData() {
 };
 
 /* Converts a hex character to its integer value */
-static char from_hex(char ch) {
+static char from_hex(const char ch) {
     return isdigit(ch) ? ch - '0' : tolower(ch) - 'a' + 10;
 }
 
 /* Converts an integer value to its hex character*/
-static char to_hex(char code) {
+static char to_hex(const char code) {
     static const char hex[] = "0123456789abcdef";
     return hex[code & 15];
 }
@@ -620,18 +624,21 @@ static char to_hex(char code) {
  * @return pointer to string
  * @warning be sure to free() the returned string after use
  */
-char *WiFiManagerClass::url_encode(char *str) {
-    char *pstr = str, *buf = (char *)malloc(strlen(str) * 3 + 1), *pbuf = buf;
-    while (*pstr) {
-        if (isalnum(*pstr) || *pstr == '-' || *pstr == '_' || *pstr == '.' || *pstr == '~')
-            *pbuf++ = *pstr;
-        else if (*pstr == ' ')
-            *pbuf++ = '+';
-        else
-            *pbuf++ = '%', *pbuf++ = to_hex(*pstr >> 4), *pbuf++ = to_hex(*pstr & 15);
-        pstr++;
+char *WiFiManagerClass::url_encode(const char *str) {
+    char *buf = (char *)malloc(strlen(str) * 3 + 1);
+    char *pbuf = buf;
+    if (buf) {
+        while (*str) {
+            if (isalnum(*str) || *str == '-' || *str == '_' || *str == '.' || *str == '~')
+                *pbuf++ = *str;
+            else if (*str == ' ')
+                *pbuf++ = '+';
+            else
+                *pbuf++ = '%', *pbuf++ = to_hex(*str >> 4), *pbuf++ = to_hex(*str & 15);
+            str++;
+        }
+        *pbuf = '\0';
     }
-    *pbuf = '\0';
     return buf;
 }
 
@@ -641,22 +648,25 @@ char *WiFiManagerClass::url_encode(char *str) {
  * @return pointer to string
  * @warning be sure to free() the returned string after use
  */
-char *WiFiManagerClass::url_decode(char *str) {
-    char *pstr = str, *buf = (char *)malloc(strlen(str) + 1), *pbuf = buf;
-    while (*pstr) {
-        if (*pstr == '%') {
-            if (pstr[1] && pstr[2]) {
-                *pbuf++ = from_hex(pstr[1]) << 4 | from_hex(pstr[2]);
-                pstr += 2;
+char *WiFiManagerClass::url_decode(const char *str) {
+    char *buf = (char *)malloc(strlen(str) + 1);
+    char *pbuf = buf;
+    if (buf) {
+        while (*str) {
+            if (*str == '%') {
+                if (str[1] && str[2]) {
+                    *pbuf++ = from_hex(str[1]) << 4 | from_hex(str[2]);
+                    str += 2;
+                }
+            } else if (*str == '+') {
+                *pbuf++ = ' ';
+            } else {
+                *pbuf++ = *str;
             }
-        } else if (*pstr == '+') {
-            *pbuf++ = ' ';
-        } else {
-            *pbuf++ = *pstr;
+            str++;
         }
-        pstr++;
+        *pbuf = '\0';
     }
-    *pbuf = '\0';
     return buf;
 }
 
@@ -665,7 +675,7 @@ char *WiFiManagerClass::url_decode(char *str) {
  * @param caller description pointer
  */
 void WiFiManagerClass::debugMemory(const char *caller) {
-    log_e("%s > Free: heap %u, block: %u, pSRAM %u\n",
+    Serial.printf("%s > Free: heap %u, block: %u, pSRAM %u\n",
             caller,
             ESP.getFreeHeap(),
             heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),

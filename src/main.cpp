@@ -64,7 +64,8 @@ void loop() {
                 WiFiManager.cleanWiFiAuthData();
                 Serial.println("cleanWiFiAuthData");
                 break;
-            case 'm':
+            case 'i':
+                Serial.printf("CPU freq=%lu MHz\n", ESP.getCpuFreqMHz());
                 WiFiManager.debugMemory("debugMemory");
                 break;
             case 'r':
