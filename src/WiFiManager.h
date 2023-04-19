@@ -1,3 +1,15 @@
+/*
+ * WiFiManager.h - WiFi management Arduino library for esp32.
+ *
+ * First: a simple setup of the configuration portal to connect your Wi-Fi router.
+ *
+ * Next: Automatically check the status of the WiFi connection
+ * using a ping gateway (router) and reconnect if it fails.
+ *
+ * aromprog 2023
+ * 
+ */
+
 #ifndef WiFiManager_h
 #define WiFiManager_h
 
@@ -6,7 +18,7 @@
 #endif
 
 #if !defined(WFM_AP_DNS_ENABLE)
-#define WFM_AP_DNS_ENABLE 1  // access point dns service
+#define WFM_AP_DNS_ENABLE 1  // access point DNS service
 #endif
 
 class WiFiManagerClass {

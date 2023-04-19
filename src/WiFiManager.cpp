@@ -1,3 +1,10 @@
+/*
+ * WiFiManager.cpp - WiFi management Arduino library for esp32.
+ *
+ * aromprog 2023
+ * 
+ */
+
 #include <Arduino.h>
 #include <WiFi.h>
 #include <ESPmDNS.h>
@@ -91,6 +98,10 @@ static void stopDnsServer() {
 
 #pragma region "Cfg Portal"
 
+#define WIFI_SCAN_LIST_SIZE 6
+static uint8_t wifiScanListCnt = 0;
+static char *wifiScanList = NULL;
+
 static httpd_handle_t cfgPortalHttpServer = NULL;
 
 static void startCfgPortalServer();
@@ -165,6 +176,32 @@ static void saveWiFiAuthData() {
         nvs_commit(nvs_handle);
         nvs_close(nvs_handle);
     }
+}
+
+static void wifi_scan_clear() {
+    free(wifiScanList);
+    wifiScanList = NULL;
+    wifiScanListCnt = 0;
+}
+
+static void wifi_scan() {
+    wifi_scan_clear();
+    int16_t numNetworks = WiFi.scanNetworks();
+    if (numNetworks) {
+        if (numNetworks > WIFI_SCAN_LIST_SIZE)
+            numNetworks = WIFI_SCAN_LIST_SIZE;
+        
+        wifiScanListCnt = numNetworks;
+        wifiScanList = (char *)malloc(wifiScanListCnt * sizeof(AP_ssid));
+        if (wifiScanList) {
+            char *pwifiScanList = wifiScanList;
+            for (uint8_t i = 0; i < wifiScanListCnt; ++i) {
+                memcpy(pwifiScanList, WiFi.SSID(i).c_str(), sizeof(AP_ssid));
+                pwifiScanList += sizeof(AP_ssid);
+            }
+        }
+    }
+    WiFi.scanDelete();
 }
 
 static void onWiFiEvent(WiFiEvent_t event) {
@@ -281,15 +318,24 @@ static bool startWifi(bool firstcall) {
         }
 
 #if WFM_ST_MDNS_ENABLE
-        if (firstcall)
+        if (firstcall) {
             setupMdnsHost();
+        }
 #endif
-        startPing();
     }
 
     if (!station || (firstcall && !WiFi.isConnected())) {
+        if (firstcall) {
+            wifi_scan();
+        }
+
         setWifiAP();
         startCfgPortalServer();
+    }
+
+    // start ping AFTER ALL configurations
+    if (station) {
+        startPing();
     }
 
     return WiFi.isConnected();
@@ -299,6 +345,7 @@ static void pingSuccess(esp_ping_handle_t hdl, void *args) {
     if (APstarted) {
         LOG_INF("pingSuccess: AP stop");
         stopCfgPortalServer();
+        wifi_scan_clear();
         WiFi.mode(WIFI_STA);
     }
 }
@@ -309,16 +356,11 @@ static void pingTimeout(esp_ping_handle_t hdl, void *args) {
 }
 
 static void startPing() {
-    if (pingHandle != NULL) {
+    if (pingHandle) {
         return;
     }
 
     IPAddress ipAddr = WiFi.gatewayIP();
-
-    if (ipAddr == INADDR_NONE) {
-        ipAddr.fromString(ST_gw);
-    }
-
     ip_addr_t pingDest;
     IP_ADDR4(&pingDest, ipAddr[0], ipAddr[1], ipAddr[2], ipAddr[3]);
     esp_ping_config_t pingConfig = ESP_PING_DEFAULT_CONFIG();
@@ -344,15 +386,14 @@ static void startPing() {
 }
 
 static void stopPing() {
-    if (pingHandle != NULL) {
+    if (pingHandle) {
         esp_ping_stop(pingHandle);
         esp_ping_delete_session(pingHandle);
         pingHandle = NULL;
     }
 }
 
-const char head_chunk_html[] = R"rawliteral(
-<!DOCTYPE HTML><html lang="en">
+const char head_chunk_html[] = R"rawliteral(<!DOCTYPE HTML><html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -360,26 +401,38 @@ const char head_chunk_html[] = R"rawliteral(
 <style>
 input[type="text"] {width:250px;margin-bottom:8px;font-size:20px;}
 input[type="submit"] {width:250px;height:60px;margin-bottom:8px;font-size:20px;}
+select {width:50px;font-size:20px;}
 body {text-align:center;font-size:15px;}
-</style></head><body><br>
-)rawliteral";
+</style></head><body><br>)rawliteral";
 
-const char end_chunk_html[] = R"rawliteral(
-</body></html>
-)rawliteral";
+const char end_chunk_html[] = R"rawliteral(</body></html>)rawliteral";
 
-const char cfg_portal_body[] = R"rawliteral(
-<form action="/" method="POST">
-<input type="text" name="ssid" placeholder="SSID" required maxlength="32"><br>
+const char cfg_portal_body_begin[] = R"rawliteral(<form action="/" method="POST">
+<input type="text" name="ssid" id="ssid" placeholder="SSID" required maxlength="32" style="width:200px;">
+<select onchange="document.getElementById('ssid').value=this.options[this.selectedIndex].text;this.selectedIndex=0">
+<option selected>&nbsp;</option>)rawliteral";
+
+const char cfg_portal_body_end[] = R"rawliteral(</select><br>
 <input type="text" name="pswd" placeholder="Pass" maxlength="64"><br>
 <input type="submit" value="Check Connection">
-</form>
-)rawliteral";
+</form>)rawliteral";
 
 static esp_err_t indexHandler(httpd_req_t *req) {
     httpd_resp_set_type(req, "text/html");
     httpd_resp_sendstr_chunk(req, head_chunk_html);
-    httpd_resp_sendstr_chunk(req, cfg_portal_body);
+    httpd_resp_sendstr_chunk(req, cfg_portal_body_begin);
+
+    if (wifiScanList) {
+        char *pwifiScanList = wifiScanList;
+        for (uint8_t i = 0; i < wifiScanListCnt; ++i) {
+            httpd_resp_sendstr_chunk(req, "<option>");
+            httpd_resp_sendstr_chunk(req, pwifiScanList);
+            httpd_resp_sendstr_chunk(req, "</option>");
+            pwifiScanList += sizeof(AP_ssid);
+        }
+    }
+
+    httpd_resp_sendstr_chunk(req, cfg_portal_body_end);
     httpd_resp_sendstr_chunk(req, end_chunk_html);
     return httpd_resp_sendstr_chunk(req, NULL); // Send empty chunk to signal HTTP response completion
 }
@@ -551,7 +604,7 @@ void WiFiManagerClass::setStaticIP(const char *ip, const char *subnet, const cha
         snprintf(ST_dns2, sizeof(ST_dns2), "%s", dns2);
 
     // restart if needed
-    if (pingHandle != NULL) {
+    if (pingHandle) {
         stopPing();
         startWifi(false);
     }

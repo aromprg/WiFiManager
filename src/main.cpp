@@ -1,13 +1,19 @@
+/*
+ * main.cpp - example use WiFiManager for esp32.
+ *
+ * aromprog 2023
+ * 
+ */
+
 #include <Arduino.h>
 #include <WebServer.h>
 #include "WiFiManager.h"
 
 WebServer server(80);
 
-bool server_started = false;
+bool demo_server_started = false;
 
-const char demo_page_html[] = R"rawliteral(
-<html>
+const char demo_page_html[] = R"rawliteral(<html>
 <head>
 <meta http-equiv='refresh' content='2'/>
 <title>ESP32 Demo</title>
@@ -18,8 +24,7 @@ const char demo_page_html[] = R"rawliteral(
 <p>Uptime: %02d:%02d:%02d</p>
 <p>Hall Sensor: %d</p>
 </body>
-</html>
-)rawliteral";
+</html>)rawliteral";
 
 void handleRoot() {
     char temp[sizeof(demo_page_html) + 50];
@@ -44,9 +49,9 @@ void loop() {
     
     delay(1);  // allow the cpu to switch to other tasks
 
-    if (!server_started) {
+    if (!demo_server_started) {
         if (WiFiManager.isConnected()) {
-            server_started = true;
+            demo_server_started = true;
             server.on("/", handleRoot);
             server.onNotFound([]() {
                 server.send(404, "text/plain", "File Not Found");
