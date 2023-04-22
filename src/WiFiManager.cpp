@@ -7,8 +7,6 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
-#include <ESPmDNS.h>
-#include <DNSServer.h>
 #include <esp_http_server.h>
 #include <ping/ping_sock.h>
 #include <nvs_flash.h>
@@ -48,6 +46,19 @@ static char ST_dns2[16] = "";  // alternative DNS Server, can be blank
 
 static bool APstarted = false;  // internal flag AP state
 
+#pragma region "Configuration Portal"
+
+#define WIFI_SCAN_LIST_SIZE 6
+static uint8_t wifiScanListCnt = 0;
+static char *wifiScanList = NULL;
+
+static httpd_handle_t cfgPortalHttpServer = NULL;
+
+static void startCfgPortalServer();
+static void stopCfgPortalServer();
+
+#pragma endregion
+
 #pragma region "Ping"
 
 #define PING_INTERVAL_SEC 30  // how often to check wifi status
@@ -56,9 +67,11 @@ static void startPing();
 
 #pragma endregion
 
-#pragma region "DNS"
+#pragma region "DNS server"
 
 #if (WFM_AP_DNS_ENABLE)
+
+#include <DNSServer.h>
 
 static DNSServer *p_dnsServer = NULL;
 static TaskHandle_t dnsServerHandle = NULL;
@@ -66,7 +79,7 @@ static TaskHandle_t dnsServerHandle = NULL;
 static void DnsServerTask(void *parameter) {
     while (true) {
         p_dnsServer->processNextRequest();
-        vTaskDelay(pdMS_TO_TICKS(100));
+        delay(10);
     }
 }
 
@@ -96,20 +109,12 @@ static void stopDnsServer() {
 
 #pragma endregion
 
-#pragma region "Cfg Portal"
-
-#define WIFI_SCAN_LIST_SIZE 6
-static uint8_t wifiScanListCnt = 0;
-static char *wifiScanList = NULL;
-
-static httpd_handle_t cfgPortalHttpServer = NULL;
-
-static void startCfgPortalServer();
-static void stopCfgPortalServer();
-
-#pragma endregion
+#pragma region "mDNS server"
 
 #if WFM_ST_MDNS_ENABLE
+
+#include <ESPmDNS.h>
+
 static void setupMdnsHost() {
     if (MDNS.begin(HostName)) {
         // Add service to MDNS
@@ -121,6 +126,8 @@ static void setupMdnsHost() {
         LOG_ERR("mDNS host: %s Failed", HostName);
 }
 #endif
+
+#pragma endregion
 
 static void loadWiFiAuthData() {
     // Initialize NVS

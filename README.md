@@ -35,7 +35,7 @@ Copy the files [src/WiFiManager.cpp](/src/WiFiManager.cpp) and [src/WiFiManager.
 ### Some features can be configured with the -Dxxx compiler option (see [platformio.ini](/platformio.ini)) 
 
 ```CPP
-#define WFM_ST_MDNS_ENABLE 1 // station mDNS service http://%HOSTNAME%.local" - DISABLED BY DEFAULT
+#define WFM_ST_MDNS_ENABLE 1 // station mDNS service "http://%HOSTNAME%.local" - DISABLED BY DEFAULT
 #define WFM_AP_DNS_ENABLE  1 // access point DNS service - ENABLED BY DEFAULT
 #define WFM_SHOW_LOG         // show debug messages over serial port - DISABLED BY DEFAULT
 ```
