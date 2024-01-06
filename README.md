@@ -13,11 +13,11 @@ The library provides simple WiFi connection management. On the first launch, WiF
 
 ## Configuration Access Point
 
-To get the setup web page after connecting to the configuration Access Point, use [http://192.168.4.1](http://192.168.4.1) in a browser. If DNS is enabled (default), it is also possible to redirect any [http://xxx.xxx](http://xxx.xxx) address to the configuration portal.  
+To get the setup web page after connecting to the configuration Access Point, use [http://192.168.4.1](http://192.168.4.1) in a browser. If DNS is enabled (default), it is also possible to redirect any [http://xxx.xxx](http://xxx.xxx) (**http*S*** doesn't redirect!) address to the configuration portal.  
 
 ![config_portal.jpg](/doc/config_portal.jpg)  
 
-On the configuration web page, you can select the found Wi-Fi networks.
+On the configuration web page, you can select the Wi-Fi networks that were found.
 
 ## Design
 
@@ -83,4 +83,4 @@ WiFiManager.debugMemory("debugMemory");
 
 ## Example
 
-This repository made as a [.platformio](https://platformio.org/) project. See [src/main.cpp](/src/main.cpp) for an example of usage.
+This repository made as a [Platformio](https://platformio.org/) project. See [src/main.cpp](/src/main.cpp) for an example of usage.
