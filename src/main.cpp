@@ -11,8 +11,6 @@
 
 WebServer server(80);
 
-bool demo_server_started = false;
-
 const char demo_page_html[] = R"rawliteral(<html>
 <head>
 <meta http-equiv='refresh' content='2'/>
@@ -36,12 +34,22 @@ void handleRoot() {
     server.send(200, "text/html", temp);
 }
 
+void OnFirstConnect() {
+    server.on("/", handleRoot);
+    server.onNotFound([]() {
+        server.send(404, "text/plain", "File Not Found");
+    });
+    server.begin();
+    Serial.println("Demo HTTP server started");
+}
+
 void setup() {
     Serial.begin(115200);
     Serial.setDebugOutput(false);
 
     WiFiManager.setStaticIP();
     WiFiManager.configAP("my_ap_ssid", "123456789");
+    WiFiManager.attachOnFirstConnect(OnFirstConnect);
     WiFiManager.start("esp_hostname");
 }
 
@@ -49,19 +57,7 @@ void loop() {
     
     delay(1);  // allow the cpu to switch to other tasks
 
-    if (!demo_server_started) {
-        if (WiFiManager.isConnected()) {
-            demo_server_started = true;
-            server.on("/", handleRoot);
-            server.onNotFound([]() {
-                server.send(404, "text/plain", "File Not Found");
-            });
-            server.begin();
-            Serial.println("Demo HTTP server started");
-        }
-    } else {
-        server.handleClient();
-    }
+    server.handleClient();
 
     if (Serial.available()) {
         switch (Serial.read()) {

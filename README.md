@@ -71,6 +71,15 @@ WiFiManager.start("esp_hostname"); // or set Hostname and start
 WiFiManager.isConnected(); // if true - connection OK
 ```
 
+### Attach user callback function to first successful connection event
+```CPP
+void OnFirstConnect() {
+    Serial.println("TODO");
+}
+
+WiFiManager.attachOnFirstConnect(OnFirstConnect);
+```
+
 ### Clean stored WiFi settings
 ```CPP
 WiFiManager.cleanWiFiAuthData();
