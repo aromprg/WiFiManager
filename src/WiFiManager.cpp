@@ -1,7 +1,7 @@
 /*
- * WiFiManager.cpp - WiFi management Arduino library for esp32.
+ * WiFiManager.cpp - WiFi management Arduino library for ESP32.
  *
- * aromprog 2023
+ * aromprg@github.com 2023-2025
  * 
  */
 
@@ -44,7 +44,9 @@ static char ST_dns2[16] = "";  // alternative DNS Server, can be blank
 
 #define START_WIFI_WAIT_SEC 15  // timeout WL_CONNECTED after board start
 
-static bool APstarted = false;  // internal flag AP state
+static bool APstarted = false;             // internal flag AP state
+static bool firstPingOK = false;           // internal flag first successful connection
+static callback_fn_t onConnect_cb = NULL;  // pointer to callback function on first successful connection event
 
 #pragma region "Configuration Portal"
 
@@ -355,6 +357,12 @@ static void pingSuccess(esp_ping_handle_t hdl, void *args) {
         wifi_scan_clear();
         WiFi.mode(WIFI_STA);
     }
+
+    if (!firstPingOK) {
+        firstPingOK = true;
+        if (onConnect_cb)
+            onConnect_cb();
+    }
 }
 
 static void pingTimeout(esp_ping_handle_t hdl, void *args) {
@@ -590,7 +598,7 @@ WiFiManagerClass::WiFiManagerClass() {
  * Set static STAtion IP-address.
  * @param ip Static IP
  * @param subnet Subnet normally 255.255.255.0
- * @param gateway Gateway to internet, normally router IP (example 192.168.0.1) if not set
+ * @param gateway Gateway to internet, if not set, the router's IP is used (192.168.0.1 as example)
  * @param dns1 DNS Server, can be router IP (needed for SNTP)
  * @param dns2 Alternative DNS Server, can be blank
  */
@@ -655,6 +663,13 @@ bool WiFiManagerClass::start(const char *hostname) {
  */
 bool WiFiManagerClass::isConnected() {
     return WiFi.isConnected();
+}
+
+/**
+ * Attach user callback function to first successful connection event
+ */
+void WiFiManagerClass::attachOnFirstConnect(callback_fn_t callback_fn) {
+    onConnect_cb = callback_fn;
 }
 
 /**
@@ -732,7 +747,7 @@ char *WiFiManagerClass::url_decode(const char *str) {
 
 /**
  * Print memory usage statistics.
- * @param caller description pointer
+ * @param caller pointer to description string
  */
 void WiFiManagerClass::debugMemory(const char *caller) {
     Serial.printf("%s > Free: heap %u, block: %u, pSRAM %u\n",
