@@ -67,7 +67,6 @@ void loop() {
                 break;
             case 'i':
                 Serial.printf("CPU freq=%lu MHz\n", ESP.getCpuFreqMHz());
-                WiFiManager.debugMemory("debugMemory");
                 break;
             case 'r':
                 ESP.restart();

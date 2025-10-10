@@ -40,10 +40,10 @@ class WiFiManagerClass {
                      const char *dns1 = nullptr,
                      const char *dns2 = nullptr);
     void configAP(const char *ssidAP = nullptr,
-               const char *passwordAP = nullptr);
+               const char *passwordAP = nullptr,
+               bool hidden = false);
     static char *url_encode(const char *str);
     static char *url_decode(const char *str);
-    static void debugMemory(const char *caller);
 };
 
 extern WiFiManagerClass WiFiManager;

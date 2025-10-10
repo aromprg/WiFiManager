@@ -1,4 +1,4 @@
-# Arduino WiFiManager Library for ESP32
+# Lightweight WiFiManager library for Arduino ESP32
 
 This Arduino library is improving the usage ESP32 WiFi module.
 The change log of this library can be found in [CHANGELOG.md](CHANGELOG.md).
@@ -57,6 +57,7 @@ If `setStaticIP()` is not called, the IP address set by the router DHCP.
 ##### Set a configuration Access Point if necessary.
 ```CPP
 WiFiManager.configAP("my_ap_ssid", "123456789");
+WiFiManager.configAP("my_ap_ssid", "123456789", true); // create hidden AP
 ```
 If `configAP()` is not called, the default access point name "ESP-XXXX" is used, where XXXX is the end MAC address of the device, with an empty password (open).
 
@@ -83,11 +84,6 @@ WiFiManager.attachOnFirstConnect(OnFirstConnect);
 ### Clean stored WiFi settings
 ```CPP
 WiFiManager.cleanWiFiAuthData();
-```
-
-### Print memory usage statistics
-```CPP
-WiFiManager.debugMemory("debugMemory");
 ```
 
 ## Example

@@ -44,7 +44,8 @@ static char ST_dns2[16] = "";  // alternative DNS Server, can be blank
 
 #define START_WIFI_WAIT_SEC 15  // timeout WL_CONNECTED after board start
 
-static bool APstarted = false;             // internal flag AP state
+static bool AP_started = false;            // internal flag AP state
+static bool AP_hidden = false;             // create hidden AP
 static bool firstPingOK = false;           // internal flag first successful connection
 static callback_fn_t onConnect_cb = NULL;  // pointer to callback function on first successful connection event
 
@@ -228,7 +229,7 @@ static void onWiFiEvent(WiFiEvent_t event) {
             LOG_INF("Wifi event: AP_START: ssid: %s, use 'http://%s' to connect",
                     WiFi.softAPSSID().c_str(),
                     WiFi.softAPIP().toString().c_str());
-            APstarted = true;
+            AP_started = true;
 #if (WFM_AP_DNS_ENABLE)
             startDnsServer();
 #endif
@@ -236,7 +237,7 @@ static void onWiFiEvent(WiFiEvent_t event) {
     } else if (event == ARDUINO_EVENT_WIFI_AP_STOP) {
         if (!strcmp(WiFi.softAPSSID().c_str(), AP_ssid)) {
             LOG_INF("Wifi event: AP_STOP: %s", WiFi.softAPSSID().c_str());
-            APstarted = false;
+            AP_started = false;
 #if (WFM_AP_DNS_ENABLE)
             stopDnsServer();
 #endif
@@ -260,9 +261,9 @@ static void onWiFiEvent(WiFiEvent_t event) {
 }
 
 static bool setWifiAP() {
-    if (!APstarted) {
+    if (!AP_started) {
         WiFi.mode(WIFI_AP_STA);
-        return WiFi.softAP(AP_ssid, AP_pswd, 1, 0, 1, false); // only 1 client
+        return WiFi.softAP(AP_ssid, AP_pswd, 1, AP_hidden, 1, false); // only 1 client
     }
     return false;
 }
@@ -270,7 +271,7 @@ static bool setWifiAP() {
 static bool setWifiSTA() {
     if (strlen(ST_ssid)) {
         
-        if (!APstarted)
+        if (!AP_started)
             WiFi.mode(WIFI_STA);
 
         if (strlen(ST_ip)) {
@@ -351,7 +352,7 @@ static bool startWifi(bool firstcall) {
 }
 
 static void pingSuccess(esp_ping_handle_t hdl, void *args) {
-    if (APstarted) {
+    if (AP_started) {
         LOG_INF("pingSuccess: AP stop");
         stopCfgPortalServer();
         wifi_scan_clear();
@@ -629,8 +630,9 @@ void WiFiManagerClass::setStaticIP(const char *ip, const char *subnet, const cha
  * Access Point configuration.
  * @param ssidAP Access Point SSID (if null - use the default name "ESP_XXXX", where XXXX is the end MAC-address of the device)
  * @param passwordAP Access Point password (if null - use the blank password)
+ * @param hidden Access Point hidden
  */
-void WiFiManagerClass::configAP(const char *ssidAP, const char *passwordAP) {
+void WiFiManagerClass::configAP(const char *ssidAP, const char *passwordAP, bool hidden) {
     if (ssidAP)
         snprintf(AP_ssid, sizeof(AP_ssid), "%s", ssidAP);
 
@@ -642,6 +644,8 @@ void WiFiManagerClass::configAP(const char *ssidAP, const char *passwordAP) {
             LOG_WRN("passwordAP must contain at least 8 characters. Apply blank password");
         }
     }
+
+    AP_hidden = hidden;
 }
 
 /**
@@ -743,18 +747,6 @@ char *WiFiManagerClass::url_decode(const char *str) {
         *pbuf = '\0';
     }
     return buf;
-}
-
-/**
- * Print memory usage statistics.
- * @param caller pointer to description string
- */
-void WiFiManagerClass::debugMemory(const char *caller) {
-    Serial.printf("%s > Free: heap %u, block: %u, pSRAM %u\n",
-            caller,
-            ESP.getFreeHeap(),
-            heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
-            ESP.getFreePsram());
 }
 
 WiFiManagerClass WiFiManager;
