@@ -81,6 +81,12 @@ void OnFirstConnect() {
 WiFiManager.attachOnFirstConnect(OnFirstConnect);
 ```
 
+### Attach user callback function to ping successful/timeout event
+```CPP
+WiFiManager.attachOnPingOK(OnPingOK);
+WiFiManager.attachOnPingERR(OnPingERR);
+```
+
 ### Clean stored WiFi settings
 ```CPP
 WiFiManager.cleanWiFiAuthData();
@@ -88,4 +94,4 @@ WiFiManager.cleanWiFiAuthData();
 
 ## Example
 
-This repository made as a [Platformio](https://platformio.org/) project. See [src/main.cpp](/src/main.cpp) for an example of usage.
+This repository is created as a [Platformio](https://platformio.org/) project. See [src/main.cpp](/src/main.cpp) for an example of usage.

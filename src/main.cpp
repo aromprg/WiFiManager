@@ -34,6 +34,21 @@ void handleRoot() {
     server.send(200, "text/html", temp);
 }
 
+uint8_t ping_err_cnt = 0;
+
+void OnPingOK() {
+    ping_err_cnt = 0;
+}
+
+void OnPingERR() {
+    ping_err_cnt++;
+    if (ping_err_cnt > 50) {
+        Serial.println("Too many ping errors - restart");
+        Serial.flush();
+        ESP.restart();
+    }
+}
+
 void OnFirstConnect() {
     server.on("/", handleRoot);
     server.onNotFound([]() {
@@ -41,6 +56,10 @@ void OnFirstConnect() {
     });
     server.begin();
     Serial.println("Demo HTTP server started");
+
+    // attach user callback to ping events
+    WiFiManager.attachOnPingOK(OnPingOK);
+    WiFiManager.attachOnPingERR(OnPingERR);
 }
 
 void setup() {

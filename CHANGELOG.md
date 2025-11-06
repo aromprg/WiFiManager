@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.0] - 2025-11-06
+
+* add user callback function to ping successful/timeout events
+
 ## [1.2.0] - 2025-10-10
 
 * add the ability to create a hidden access point

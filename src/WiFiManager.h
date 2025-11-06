@@ -33,6 +33,8 @@ class WiFiManagerClass {
     bool start(const char *hostname = nullptr);
     bool isConnected();
     void attachOnFirstConnect(callback_fn_t callback_fn);
+    void attachOnPingOK(callback_fn_t callback_fn);
+    void attachOnPingERR(callback_fn_t callback_fn);
     void cleanWiFiAuthData();
     void setStaticIP(const char *ip = "192.168.0.200",
                      const char *subnet = "255.255.255.0",

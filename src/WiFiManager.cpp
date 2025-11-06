@@ -48,6 +48,8 @@ static bool AP_started = false;            // internal flag AP state
 static bool AP_hidden = false;             // create hidden AP
 static bool firstPingOK = false;           // internal flag first successful connection
 static callback_fn_t onConnect_cb = NULL;  // pointer to callback function on first successful connection event
+static callback_fn_t onPingOK_cb = NULL;   // pointer to callback function on ping success event
+static callback_fn_t onPingERR_cb = NULL;  // pointer to callback function on ping timeout event
 
 #pragma region "Configuration Portal"
 
@@ -364,11 +366,17 @@ static void pingSuccess(esp_ping_handle_t hdl, void *args) {
         if (onConnect_cb)
             onConnect_cb();
     }
+
+    if (onPingOK_cb)
+        onPingOK_cb();
 }
 
 static void pingTimeout(esp_ping_handle_t hdl, void *args) {
     LOG_WRN("Failed to ping gateway, restart wifi");
     startWifi(false);
+
+    if (onPingERR_cb)
+        onPingERR_cb();
 }
 
 static void startPing() {
@@ -674,6 +682,20 @@ bool WiFiManagerClass::isConnected() {
  */
 void WiFiManagerClass::attachOnFirstConnect(callback_fn_t callback_fn) {
     onConnect_cb = callback_fn;
+}
+
+/**
+ * Attach user callback function to ping success event
+ */
+void WiFiManagerClass::attachOnPingOK(callback_fn_t callback_fn) {
+    onPingOK_cb = callback_fn;
+}
+
+/**
+ * Attach user callback function to ping timeout event
+ */
+void WiFiManagerClass::attachOnPingERR(callback_fn_t callback_fn) {
+    onPingERR_cb = callback_fn;
 }
 
 /**
