@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.1] - 2026-05-15
+
+* fix line break in debug output
+
 ## [1.3.0] - 2025-11-06
 
 * add user callback function to ping successful/timeout events

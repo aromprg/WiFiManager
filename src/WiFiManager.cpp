@@ -14,9 +14,9 @@
 #include "WiFiManager.h"
 
 #if defined(WFM_SHOW_LOG)
-#define LOG_INF(format, ...) Serial.printf(format "\n", ##__VA_ARGS__)
-#define LOG_WRN(format, ...) Serial.printf(format "\n", ##__VA_ARGS__)
-#define LOG_ERR(format, ...) Serial.printf(format "\n", ##__VA_ARGS__)
+#define LOG_INF(format, ...) Serial.printf(format "\r\n", ##__VA_ARGS__)
+#define LOG_WRN(format, ...) Serial.printf(format "\r\n", ##__VA_ARGS__)
+#define LOG_ERR(format, ...) Serial.printf(format "\r\n", ##__VA_ARGS__)
 #else
 #define LOG_INF(format, ...)
 #define LOG_WRN(format, ...)
